@@ -1,6 +1,5 @@
 -- =====================================================
--- SHARP V13 - THE OVERLORD (FIXED)
--- X-RAY دائم + AIMBOT صاروخي + لوحة لاعبين + PIN ثابت
+-- SHARP V14 - THE OVERLORD (FIXED DRAG + PIN)
 -- =====================================================
 
 local Players = game:GetService("Players")
@@ -9,7 +8,7 @@ local UserInputService = game:GetService("UserInputService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
--- ==================== الحالات ====================
+-- الحالات
 local isEnabled = false
 local uiLocked = false
 local uiHidden = false
@@ -47,17 +46,18 @@ Players.PlayerAdded:Connect(function(player)
 end)
 task.spawn(initXray)
 
--- ==================== 2. UI ====================
+-- ==================== 2. واجهة ON/OFF + PIN ====================
 local pGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
 pGui.Name = "PowerUI"
 pGui.ResetOnSpawn = false
 
--- زر ON/OFF (يتحرك مع PIN)
+-- مجموعة الزر (قابلة للسحب فقط قبل PIN)
 local btnGroup = Instance.new("Frame", pGui)
 btnGroup.Size = UDim2.new(0, 60, 0, 80)
 btnGroup.Position = UDim2.new(0.03, 0, 0.3, 0)
 btnGroup.BackgroundTransparency = 1
 
+-- زر ON/OFF
 local pBtn = Instance.new("TextButton", btnGroup)
 pBtn.Size = UDim2.new(0, 55, 0, 55)
 pBtn.Position = UDim2.new(0, 0, 0, 0)
@@ -71,7 +71,7 @@ local pStroke = Instance.new("UIStroke", pBtn)
 pStroke.Thickness = 2
 pStroke.Color = Color3.new(1, 1, 1)
 
--- زر PIN (أسفل زر ON/OFF)
+-- زر PIN (أسفل ON/OFF)
 local pinBtn = Instance.new("TextButton", btnGroup)
 pinBtn.Size = UDim2.new(0, 40, 0, 20)
 pinBtn.Position = UDim2.new(0.075, 0, 1, 3)
@@ -82,13 +82,54 @@ pinBtn.Font = Enum.Font.GothamBold
 pinBtn.TextSize = 12
 Instance.new("UICorner", pinBtn).CornerRadius = UDim.new(0, 5)
 
--- ==================== 3. لوحة اللاعبين (مصغرة) ====================
+-- ==================== 3. سحب زر ON/OFF (منفصل عن PIN) ====================
+local draggingBtn = false
+local dragBtnStart = nil
+local dragBtnStartPos = nil
+
+btnGroup.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if pinActive then return end -- إذا كان PIN مفعلاً، ما يتحرك
+        draggingBtn = true
+        dragBtnStart = input.Position
+        dragBtnStartPos = btnGroup.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingBtn and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+        local delta = input.Position - dragBtnStart
+        btnGroup.Position = UDim2.new(dragBtnStartPos.X.Scale, dragBtnStartPos.X.Offset + delta.X, dragBtnStartPos.Y.Scale, dragBtnStartPos.Y.Offset + delta.Y)
+    end
+end)
+
+btnGroup.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingBtn = false
+    end
+end)
+
+-- ==================== 4. زر PIN ====================
+pinBtn.MouseButton1Click:Connect(function()
+    pinActive = not pinActive
+    if pinActive then
+        pinBtn.Text = "Pinned ✓"
+        pinBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+        pinBtn.Visible = false -- يختفي تماماً
+    else
+        pinBtn.Text = "Pin"
+        pinBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        pinBtn.Visible = true
+    end
+end)
+
+-- ==================== 5. لوحة اللاعبين (قابلة للسحب) ====================
 local playerListGui = Instance.new("ScreenGui", LocalPlayer.PlayerGui)
 playerListGui.Name = "PlayerListUI"
 playerListGui.ResetOnSpawn = false
 
 local playerFrame = Instance.new("Frame", playerListGui)
-playerFrame.Size = UDim2.new(0, 160, 0, 250) -- أصغر
+playerFrame.Size = UDim2.new(0, 160, 0, 250)
 playerFrame.Position = UDim2.new(0.8, -170, 0.2, 0)
 playerFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 playerFrame.BackgroundTransparency = 0.1
@@ -115,7 +156,6 @@ scroll.CanvasSize = UDim2.new(0, 0, 0, 10)
 local listLayout = Instance.new("UIListLayout", scroll)
 listLayout.Padding = UDim.new(0, 3)
 
--- ==================== 4. تحديث قائمة اللاعبين ====================
 local function updatePlayerList()
     for _, child in pairs(scroll:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
@@ -176,44 +216,29 @@ updatePlayerList()
 Players.PlayerAdded:Connect(updatePlayerList)
 Players.PlayerRemoving:Connect(updatePlayerList)
 
--- ==================== 5. السحب ====================
-local function makeDraggable(obj, lockable)
-    local dragging, startInput, startPos
-    obj.InputBegan:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-            if lockable and pinActive then return end -- إذا كان PIN مفعلاً، ما يتحرك
-            dragging = true
-            startInput = input.Position
-            startPos = obj.Position
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - startInput
-            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-    obj.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-end
+-- ==================== 6. سحب لوحة اللاعبين ====================
+local draggingList = false
+local dragListStart = nil
+local dragListStartPos = nil
 
-makeDraggable(btnGroup, true) -- يتحرك مع PIN
-makeDraggable(playerFrame, false)
+playerFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingList = true
+        dragListStart = input.Position
+        dragListStartPos = playerFrame.Position
+    end
+end)
 
--- ==================== 6. زر PIN ====================
-pinBtn.MouseButton1Click:Connect(function()
-    pinActive = not pinActive
-    if pinActive then
-        pinBtn.Text = "Pinned"
-        pinBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-        pinBtn.Visible = false -- يختفي بعد التثبيت
-    else
-        pinBtn.Text = "Pin"
-        pinBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        pinBtn.Visible = true
+UserInputService.InputChanged:Connect(function(input)
+    if draggingList and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+        local delta = input.Position - dragListStart
+        playerFrame.Position = UDim2.new(dragListStartPos.X.Scale, dragListStartPos.X.Offset + delta.X, dragListStartPos.Y.Scale, dragListStartPos.Y.Offset + delta.Y)
+    end
+end)
+
+playerFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingList = false
     end
 end)
 
@@ -261,7 +286,32 @@ hBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 hBtn.TextColor3 = Color3.new(1, 1, 1)
 hBtn.TextSize = 9
 
-makeDraggable(cFrame, true)
+-- ==================== 8. سحب دائرة التصويب ====================
+local draggingCross = false
+local dragCrossStart = nil
+local dragCrossStartPos = nil
+
+cFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if uiLocked then return end
+        draggingCross = true
+        dragCrossStart = input.Position
+        dragCrossStartPos = cFrame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if draggingCross and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement) then
+        local delta = input.Position - dragCrossStart
+        cFrame.Position = UDim2.new(dragCrossStartPos.X.Scale, dragCrossStartPos.X.Offset + delta.X, dragCrossStartPos.Y.Scale, dragCrossStartPos.Y.Offset + delta.Y)
+    end
+end)
+
+cFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingCross = false
+    end
+end)
 
 lBtn.MouseButton1Click:Connect(function()
     uiLocked = not uiLocked
@@ -275,7 +325,7 @@ hBtn.MouseButton1Click:Connect(function()
     btns.Visible = not uiHidden
 end)
 
--- ==================== 8. محرك القنص ====================
+-- ==================== 9. محرك القنص ====================
 local function isTargetVisible(part)
     local castParams = RaycastParams.new()
     castParams.FilterDescendantsInstances = {LocalPlayer.Character, part.Parent}
@@ -316,11 +366,11 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ==================== 9. ON/OFF ====================
+-- ==================== 10. ON/OFF ====================
 pBtn.MouseButton1Click:Connect(function()
     isEnabled = not isEnabled
     pBtn.Text = isEnabled and "ON" or "OFF"
     pBtn.BackgroundColor3 = isEnabled and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
 end)
 
-print("🔥 SHARP V13 - THE OVERLORD (FIXED) LOADED")
+print("🔥 SHARP V14 - THE OVERLORD (FIXED) LOADED")
